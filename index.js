@@ -8,8 +8,79 @@ const rebasesPerDay = (1000 * 60 * 60 * 24) / rebasePeriod;
 
 const restakePeriod = 60;
 
+/* 1000 ms * 60 seconds * 60 minutes */
+const defaultRestakePeriod = 1000 * 60 * 60;
+
+const restakeBlocks = defaultRestakePeriod / rebasePeriod;
+
 async function main() {
-    await gimmeTheBestBondDiscounts();
+    const action = await askQuestion('Action?: ');
+
+    switch (action) {
+        case 'profit': {
+            calculateFourFourBonusIN();
+            break;
+        }
+        case 'bond': {
+            gimmeTheBestBondDiscounts();
+            break;
+        }
+    }
+}
+
+async function calculateFourFourBonusIN() {
+    const APY = await getApy();
+
+    const staked = await askQuestion('How much IN are you currently staking?: ');
+    const stakedNum = parseNumber(staked);
+
+    const bondDiscount = await getBondRate();
+
+    const rebondTime = await getRebondRate();
+
+    const haveBond = await getHaveExistingBond();
+
+    if (!haveBond) {
+        const stakedBalance = calculateStakingProfit(stakedNum, APY, rebasesPerDay * 5);
+        const fourFourBalance = calculateFourFourProfit(0, stakedNum, APY, bondDiscount, rebasesPerDay * 5, rebondTime);
+
+        const profit = fourFourBalance - stakedBalance;
+
+        console.log(`After 5 days, you would make ${formatIN(profit)} more with (4,4) than (3,3) - ${formatIN(fourFourBalance)} vs ${formatIN(stakedBalance)}`);
+    } else {
+        const bonded = await askQuestion('How much IN is pending in bonds?: ');
+
+        const bondedNum = parseNumber(bonded);
+
+        const time = await askQuestion('How many days/hours does your bond have remaining? (e.g. 2d10h): ');
+
+        const timeParsed = parseTimeString(time);
+
+        const percentBonded = (bondedNum / (stakedNum + bondedNum)) * 100;
+
+        const bondPeriod = (timeParsed * 1000) / rebasePeriod;
+
+        const completeVest = calculateProfitWithPartialVest(stakedNum, bondedNum, APY, rebasesPerDay * 5, bondPeriod, rebondTime);
+        const resetVest = calculateFourFourProfit(bondedNum, stakedNum, APY, bondDiscount, rebasesPerDay * 5, rebondTime);
+
+        const profit = resetVest - completeVest;
+
+        if (profit > 0) {
+            console.log(`After 5 days, you would make ${formatIN(profit)} more with (4,4) than (3,3) - ${formatIN(resetVest)} vs ${formatIN(completeVest)}`);
+        } else {
+            console.log(`After 5 days, you would make ${formatIN(Math.abs(profit))} less with (4,4) than (3,3) - ${formatIN(resetVest)} vs ${formatIN(completeVest)}`);
+        }
+    }
+}
+
+async function getHaveExistingBond() {
+    const bonding = await askQuestion('Do you have an existing bond? [y/N]: ');
+
+    const letter = bonding.length === 0
+        ? 'n'
+        : bonding.toLowerCase()[0];
+
+    return letter === 'y';
 }
 
 function parseTimeString(str) {
@@ -55,7 +126,15 @@ function parseNumber(str) {
     return num;
 }
 
-async function gimmeTheBestBondDiscounts() {
+async function getRebondRate() {
+    const rate = await askQuestion('How often do you claim and restake your bond rewards?: (e.g. 8h): ');
+
+    const timeParsed = parseTimeString(rate);
+
+    return (timeParsed * 1000) / rebasePeriod;
+}
+
+async function getApy() {
     let APY = await askQuestion('What is the current APY?: ');
 
     if (APY.endsWith('%')) {
@@ -63,6 +142,24 @@ async function gimmeTheBestBondDiscounts() {
     }
 
     const APYNum = parseNumber(APY);
+
+    return APYNum;
+}
+
+async function getBondRate() {
+    let rate = await askQuestion('What is the best current bond discount?: ');
+
+    if (rate.endsWith('%')) {
+        rate = rate.substr(0, rate.length - 1);
+    }
+
+    const rateNum = parseNumber(rate);
+
+    return rateNum;
+}
+
+async function gimmeTheBestBondDiscounts() {
+    const APYNum = await getApy();
 
     const bonding = await askQuestion('Do you have an existing bond? [y/N]: ');
 
@@ -116,34 +213,34 @@ function askQuestion(query) {
 }
 
 function calculateMinimumBondDiscountWithPartialVest(APY, restakeMinutes, percentBonded, bondPeriod) {
+    const amountBonded = 100 * (percentBonded / 100);
+    const amountStaked = 100 - amountBonded;
+
+    const completeVest = calculateProfitWithPartialVest(amountStaked, amountBonded, APY, rebasesPerDay * 5, bondPeriod, restakeBlocks);
+
     for (let bondDiscount = 3; bondDiscount < 100; bondDiscount += 0.01) {
-        const restakePeriod = 1000 * 60 * restakeMinutes;
-
-        const amountBonded = 100 * (percentBonded / 100);
-        const amountStaked = 100 - amountBonded;
-
-        const completeVest = calculateProfitWithPartialVest(amountStaked, amountBonded, APY, rebasesPerDay * 5, bondPeriod, restakePeriod / rebasePeriod);
-
-        const resetVest = calculateFourFourProfit(amountBonded, amountStaked, APY, bondDiscount, rebasesPerDay * 5, restakePeriod / rebasePeriod);
+        const resetVest = calculateFourFourProfit(amountBonded, amountStaked, APY, bondDiscount, rebasesPerDay * 5, restakeBlocks);
 
         if (resetVest > completeVest) {
             return bondDiscount;
         }
     }
+
+    return 100;
 }
 
 function calculateMinimumBondDiscount(APY, restakeMinutes) {
     const stakedBalance = calculateStakingProfit(100, APY, rebasesPerDay * 5);
 
     for (let bondDiscount = 3; bondDiscount < 20; bondDiscount += 0.01) {
-        const restakePeriod = 1000 * 60 * restakeMinutes;
-
-        const fourFourBalance = calculateFourFourProfit(0, 100, APY, bondDiscount, rebasesPerDay * 5, restakePeriod / rebasePeriod);
+        const fourFourBalance = calculateFourFourProfit(0, 100, APY, bondDiscount, rebasesPerDay * 5, restakeBlocks);
 
         if (fourFourBalance > stakedBalance) {
             return bondDiscount;
         }
     }
+
+    return 100;
 }
 
 function formatPeriod(period) {
