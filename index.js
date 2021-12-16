@@ -56,13 +56,13 @@ function parseNumber(str) {
 }
 
 async function gimmeTheBestBondDiscounts() {
-    let apy = await askQuestion('What is the current APY?: ');
+    let APY = await askQuestion('What is the current APY?: ');
 
-    if (apy.endsWith('%')) {
-        apy = apy.substr(0, apy.length - 1);
+    if (APY.endsWith('%')) {
+        APY = APY.substr(0, APY.length - 1);
     }
 
-    const apyNum = parseNumber(apy);
+    const APYNum = parseNumber(APY);
 
     const bonding = await askQuestion('Do you have an existing bond? [y/N]: ');
 
@@ -71,7 +71,7 @@ async function gimmeTheBestBondDiscounts() {
         : bonding.toLowerCase()[0];
 
     if (letter === 'n') {
-        const discount = calculateMinimumBondDiscount(apyNum, restakePeriod);
+        const discount = calculateMinimumBondDiscount(APYNum, restakePeriod);
 
         console.log(`With a restake period of ${formatPeriod(restakePeriod)}, ` +
             `(4,4) is more profitable than (3,3) when bonds are >= ${discount.toFixed(2)}%`
@@ -93,7 +93,7 @@ async function gimmeTheBestBondDiscounts() {
 
         const bondPeriod = (timeParsed * 1000) / rebasePeriod;
 
-        const discount = calculateMinimumBondDiscountWithPartialVest(apyNum, restakePeriod, percentBonded, bondPeriod);
+        const discount = calculateMinimumBondDiscountWithPartialVest(APYNum, restakePeriod, percentBonded, bondPeriod);
 
         console.log(`With a restake period of ${formatPeriod(restakePeriod)}, and ` +
             `${percentBonded.toFixed(1)}% of your IN locked up in bonds with ` +
@@ -158,7 +158,7 @@ function formatPeriod(period) {
     return `${Math.floor(period / 60 / 24)} days`;
 }
 
-function calculateStakingProfit(balance, apy, blocks) {
+function calculateStakingProfit(balance, APY, blocks) {
     const rebaseRate = (1 + (APY / 100)) ** (1 / (rebasesPerDay * 365)) - 1;
 
     for (let i = 0; i <= blocks; i++) {
@@ -170,7 +170,7 @@ function calculateStakingProfit(balance, apy, blocks) {
     return balance;
 }
 
-function calculateFourFourProfit(existingBondBalance, balance, apy, bondRate, blocks, restakeBlockCount) {
+function calculateFourFourProfit(existingBondBalance, balance, APY, bondRate, blocks, restakeBlockCount) {
     const bondBalance = existingBondBalance + balance + (balance * (bondRate / 100));
 
     const rebaseRate = (1 + (APY / 100)) ** (1 / (rebasesPerDay * 365)) - 1;
@@ -192,19 +192,19 @@ function calculateFourFourProfit(existingBondBalance, balance, apy, bondRate, bl
     return inBalance;
 }
 
-function calculateProfitWithPartialVest(balanceStaked, balanceBonded, apy, blocks, bondBlocks, restakeBlockCount) {
+function calculateProfitWithPartialVest(balanceStaked, balanceBonded, APY, blocks, bondBlocks, restakeBlockCount) {
     if (bondBlocks > blocks) {
         throw new Error('Bond blocks should be less than blocks');
     }
 
-    const balanceAfterVest = calculateBalanceAfterVestComplete(balanceStaked, balanceBonded, apy, bondBlocks, restakeBlockCount);
+    const balanceAfterVest = calculateBalanceAfterVestComplete(balanceStaked, balanceBonded, APY, bondBlocks, restakeBlockCount);
 
-    const balanceAfterStake = calculateStakingProfit(balanceAfterVest, apy, blocks - bondBlocks);
+    const balanceAfterStake = calculateStakingProfit(balanceAfterVest, APY, blocks - bondBlocks);
 
     return balanceAfterStake;
 }
 
-function calculateBalanceAfterVestComplete(balanceStaked, balanceBonded, apy, blocks, restakeBlockCount) {
+function calculateBalanceAfterVestComplete(balanceStaked, balanceBonded, APY, blocks, restakeBlockCount) {
     const bondBalance = balanceBonded;
 
     const rebaseRate = (1 + (APY / 100)) ** (1 / (rebasesPerDay * 365)) - 1;
