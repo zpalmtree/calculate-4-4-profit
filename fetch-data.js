@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 import { Connection } from '@solana/web3.js';
 
-export const RPC_URL: string = 'https://solana-api.projectserum.com';
+export const RPC_URL = 'https://ssc-dao.genesysgo.net/';
 
 export async function fetchNearbyBlock(connection, slot) {
     try {
